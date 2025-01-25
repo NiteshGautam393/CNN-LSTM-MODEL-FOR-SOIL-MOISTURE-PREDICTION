@@ -1,0 +1,62 @@
+// Load the shapefile from your assets
+var aoi = ee.FeatureCollection('projects/vertical-planet-414112/assets/hermes_NPL_new_wgs_0');
+
+// Define a projection with a finer scale (500 meters)
+var targetProjection = ee.Projection('EPSG:4326').atScale(500);
+
+// Function to get the date string in the format 'YYYY-MM-DD'
+var formatDate = function(date) {
+  return ee.Date(date).format('YYYY-MM-dd').getInfo();
+};
+
+// Function to prepare the image
+function prepareImage(image) {
+  // Resample the image using bilinear interpolation
+  var resampledImage = image.resample('bilinear').reproject({
+    crs: targetProjection,
+    scale: 500
+  }).toFloat();
+  
+  // Clip the image to the AOI
+  return resampledImage.clip(aoi);
+}
+
+// Loop through each day in the date range and collect daily mean images
+var startDate = ee.Date('2022-01-01');
+var endDate = ee.Date('2022-01-31');
+var nDays = endDate.difference(startDate, 'day').getInfo();
+
+var dailyMeanImages = [];
+
+for (var i = 0; i < nDays; i++) {
+  var currentDate = startDate.advance(i, 'day');
+  var nextDate = currentDate.advance(1, 'day');
+  
+  // Filter the SMAP ImageCollection for the current day
+  var dailyCollection = ee.ImageCollection("NASA/SMAP/SPL4SMGP/007")
+                          .filterBounds(aoi)
+                          .filterDate(currentDate, nextDate)
+                          .select(['sm_surface']); // Select the soil moisture band
+  
+  // Calculate the mean image for the current day
+  var dailyMeanImage = dailyCollection.mean().rename('mean_soil_moisture_' + formatDate(currentDate));
+  
+  // Prepare the daily mean image
+  dailyMeanImage = prepareImage(dailyMeanImage);
+  
+  // Add the prepared image to the list
+  dailyMeanImages.push(dailyMeanImage);
+}
+
+// Stack the daily mean images into a single multi-band image
+var multiBandImage = ee.Image.cat(dailyMeanImages);
+
+// Export the multi-band image as a GeoTIFF
+Export.image.toDrive({
+  image: multiBandImage,
+  description: 'SMAP_Soil_Moisture_Mean_July_2022',
+  scale: 500, // 500 meters
+  region: aoi.geometry(),
+  fileFormat: 'GeoTIFF',
+  maxPixels: 1e9 // Adjust max pixels if necessary
+});
