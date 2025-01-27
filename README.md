@@ -21,7 +21,7 @@ The following Python libraries are required to run the code:</br>
 •	random: For generating random operations when required.</br> </br> 
 
 o	To install these libraries, run:</br> 
-<li>pip install rasterio numpy matplotlib seaborn</li>li</br> 
+<li>pip install rasterio numpy matplotlib seaborn</li></br> 
 
 <h3>Data Description:</h3>
 Input Data:</br> 
